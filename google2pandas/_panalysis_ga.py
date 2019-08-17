@@ -400,19 +400,26 @@ class GoogleAnalyticsQueryV4(OAuthDataReaderV4):
                 Reformatted response to **query.
         '''
         if all_results:
-            qry = deepcopy(query)
+            # qry = deepcopy(query)
             out = {'reports' : []}
             
             while True:
-                response = self._service.reports().batchGet(body=qry).execute()
-                out['reports'] = out['reports'] + response['reports']
-                
+                response = self._service.reports().batchGet(body=query).execute()
+                out['reports'] += response['reports']
                 tkn = response.get('reports', [])[0].get('nextPageToken', '')
+
                 if tkn:
-                    qry['reportRequests'][0].update({'pageToken' : tkn})
+                    query['reportRequests'][0].update({'pageToken' : tkn})
                     
                 else:
-                    break
+                    try:
+                        _ = query['reportRequests'][0].pop('pageToken')
+
+                    except KeyError:
+                        pass
+
+                    finally:
+                        break
                     
         else:
             out = self._service.reports().batchGet(body=query).execute()
@@ -430,49 +437,65 @@ class GoogleAnalyticsQueryV4(OAuthDataReaderV4):
         this way.
         
         TODO:
-        This is VERY inclomplete and pure kludge at this point!
+        This is likely icomplete as the test cases have been quite limited, please
+        do not hesitate to report failures!
+            * metric data types not preserved, everything is string
+            * the summary data in resp is disregarded; the information
+              is trivial to retrieve from the returned frame so I cannot
+              see any reason why it should be kept
         '''
         out = pd.DataFrame()
+
+        mdtype = {
+            'METRIC_TYPE_UNSPECIFIED'   : str,
+            'INTEGER'                   : int,
+            'FLOAT'                     : float,
+            'CURRENCY'                  : float,
+            'PERCENT'                   : float
+        }
+
+        def row_handler(var, cols):
+            dims = var.get('dimensions', [])
+            mtrc = var.get('metrics', [])
+
+            r = dims + [item for sublist in [e.get('values') for e in mtrc] for item in sublist]
+
+            return pd.Series(r, index=cols)
         
         for rpt in resp.get('reports', []):
             # column names
             col_hdrs = rpt.get('columnHeader', {})
-            cols = col_hdrs['dimensions']
+            cols = col_hdrs.get('dimensions', [])
             
-            if 'metricHeader' in col_hdrs.keys():
+            if 'metricHeader' in col_hdrs:
                 metrics = col_hdrs.get('metricHeader', {}).get('metricHeaderEntries', [])
-                
-                for m in metrics:
-                    # no effort made here to retain the dtype of the column
-                    cols = cols + [m.get('name', '')]
-                    
-            df = pd.DataFrame(columns=cols)
+                metric_cols = [m.get('name', '') for m in metrics]
+                metric_dtypes = [m.get('type', '') for m in metrics]
+
+                cols += metric_cols
             
-            rows = rpt.get('data', {}).get('rows')
-            for row in rows:
-                d = row.get('dimensions', [])
-                
-                if 'metrics' in row.keys():
-                    metrics = row.get('metrics', [])
-                    for m in metrics:
-                        
-                        # TODO:
-                        # this will likely not work in general
-                        d = d + m.get('values', '')
-                
-                drow = {}
-                for i, c in enumerate(cols):
-                    drow.update({c : d[i]})
-                    
-                df = pd.concat((df, pd.DataFrame(drow, index=[0])),
-                               ignore_index=True)
+            rows = rpt.get('data', {}).get('rows', [])
+
+            if any(rows):
+                df = pd.io.json.json_normalize(rows)\
+                        .apply(lambda x: row_handler(x, cols), 1)
+
+            else:
+                df = pd.DataFrame(columns=cols)
                 
             out = pd.concat((out, df), ignore_index=True)
+
+        # fix the dtypes of the metrics columns
+        for col, dtype in zip(metric_cols, metric_dtypes):
+            if dtype == 'TIME':
+                out[col] = pd.to_datetime(out[col])
+
+            else:
+                out[col] = out[col].astype(mdtype.get(dtype))
         
         # get rid of the annoying 'ga:' bits on each column name
-        for col in out.columns:
-            out.rename(columns={col : col[3:]}, inplace=True)
-            
+        out = out.rename(columns={col : col.strip('ga:') for col in out.columns})
+
         return out
     
     
