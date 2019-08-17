@@ -396,11 +396,10 @@ class GoogleAnalyticsQueryV4(OAuthDataReaderV4):
                 
         Returns:
         -----------
-            df : pandas.DataFrame
-                Reformatted response to **query.
+            df : pandas.DataFrame OR JSON
+                Reformatted response to **query if as_dict=False, else JSON
         '''
-        if all_results:
-            # qry = deepcopy(query)
+        if all_results
             out = {'reports' : []}
             
             while True:
@@ -439,7 +438,6 @@ class GoogleAnalyticsQueryV4(OAuthDataReaderV4):
         TODO:
         This is likely icomplete as the test cases have been quite limited, please
         do not hesitate to report failures!
-            * metric data types not preserved, everything is string
             * the summary data in resp is disregarded; the information
               is trivial to retrieve from the returned frame so I cannot
               see any reason why it should be kept
