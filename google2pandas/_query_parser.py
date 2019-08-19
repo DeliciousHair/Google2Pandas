@@ -147,8 +147,17 @@ class QueryParser(object):
         d = len(prefix)
             
         if data is not None:
-            if isinstance(data, (pd.compat.string_types, int)):
-                data = [data]
+            # temporary fix; panddas 0.25+ only supports python 3.5.3 and higher,
+            # making the use of pd.compat.string_types nonsense. Temporary workaround
+            # to not tie module to a version of pandas
+            if pd.__version__ >= '0.25.0':
+                if isinstance(data, (str, int)):
+                    data = [data]
+
+            else:
+                if isinstance(data, (pd.compat.string_types, int)):
+                    data = [data]
+
             data = ','.join(['{0}{1}'.format(prefix, x) if x[:d] != prefix \
                     else x for x in data])
             
@@ -157,8 +166,16 @@ class QueryParser(object):
     def _maybe_add_sort_arg(self, query, field, data):
         d = len(self.prefix)
         if data is not None:
-            if isinstance(data, (pd.compat.string_types, int)):
-                data = [data]
+            # temporary fix; panddas 0.25+ only supports python 3.5.3 and higher,
+            # making the use of pd.compat.string_types nonsense. Temporary workaround
+            # to not tie module to a version of pandas
+            if pd.__version__ >= '0.25.0':
+                if isinstance(data, (str, int)):
+                    data = [data]
+
+            else:
+                if isinstance(data, (pd.compat.string_types, int)):
+                    data = [data]
                 
             def _prefix(item):
                 if item[0] is '-':
@@ -181,8 +198,16 @@ class QueryParser(object):
     def _maybe_add_filter_arg(self, query, field, data):
         d = len(self.prefix)
         if data is not None:
-            if isinstance(data, (pd.compat.string_types, int)):
+            # temporary fix; panddas 0.25+ only supports python 3.5.3 and higher,
+            # making the use of pd.compat.string_types nonsense. Temporary workaround
+            # to not tie module to a version of pandas
+            if pd.__version__ >= '0.25.0':
+                if isinstance(data, (str, int)):
                 data = [data]
+
+            else:
+                if isinstance(data, (pd.compat.string_types, int)):
+                    data = [data]
                 
             def _prefix(item):
                 if item[:d] != self.prefix:
